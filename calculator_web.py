@@ -1,12 +1,16 @@
 """Web UI for calculator.py — run this, then open http://localhost:8000."""
 
 import json
-from http.server import BaseHTTPRequestHandler, HTTPServer
+import os
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from calculator import evaluate
 
-HOST = "127.0.0.1"
-PORT = 8000
+# Hosting services (Render, Railway, etc.) set PORT and need the server to
+# listen on all interfaces; locally it stays private to this machine.
+PORT = int(os.environ.get("PORT", 8000))
+HOST = os.environ.get("HOST", "0.0.0.0" if "PORT" in os.environ else "127.0.0.1")
+MAX_EXPRESSION_LENGTH = 200
 
 PAGE = """<!doctype html>
 <html lang="en">
@@ -137,8 +141,16 @@ class Handler(BaseHTTPRequestHandler):
             return
         try:
             length = int(self.headers.get("Content-Length", 0))
+            if length > 1000:
+                raise ValueError("request too large")
             payload = json.loads(self.rfile.read(length) or b"{}")
-            value = evaluate(str(payload.get("expression", "")), {"ans": payload.get("ans", 0)})
+            expression = str(payload.get("expression", ""))
+            if len(expression) > MAX_EXPRESSION_LENGTH:
+                raise ValueError(f"expression too long (max {MAX_EXPRESSION_LENGTH} characters)")
+            ans = payload.get("ans", 0)
+            if not isinstance(ans, (int, float)) or isinstance(ans, bool):
+                ans = 0
+            value = evaluate(expression, {"ans": ans})
             body = {"result": value}
         except ZeroDivisionError:
             body = {"error": "Error: division by zero"}
@@ -148,7 +160,7 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main():
-    server = HTTPServer((HOST, PORT), Handler)
+    server = ThreadingHTTPServer((HOST, PORT), Handler)
     print(f"Calculator UI running at http://localhost:{PORT}  (Ctrl+C to stop)")
     try:
         server.serve_forever()

@@ -8,6 +8,16 @@ import ast
 import math
 import operator
 
+MAX_EXPONENT = 10000
+
+
+def safe_pow(base, exponent):
+    """Power with a cap on the exponent, so 9**9**9 can't hang the process."""
+    if abs(exponent) > MAX_EXPONENT:
+        raise ValueError(f"exponent too large (max {MAX_EXPONENT})")
+    return operator.pow(base, exponent)
+
+
 BINARY_OPS = {
     ast.Add: operator.add,
     ast.Sub: operator.sub,
@@ -15,7 +25,7 @@ BINARY_OPS = {
     ast.Div: operator.truediv,
     ast.FloorDiv: operator.floordiv,
     ast.Mod: operator.mod,
-    ast.Pow: operator.pow,
+    ast.Pow: safe_pow,
 }
 
 UNARY_OPS = {
